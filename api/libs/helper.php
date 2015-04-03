@@ -236,18 +236,18 @@ function sendMail($info) {
     $mail->isSMTP();                                      // Set mailer to use SMTP
     $mail->Host = 'smtp.gmail.com';  // Specify main and backup SMTP servers
     $mail->SMTPAuth = true;                               // Enable SMTP authentication
-    $mail->Username = 'abhishek.ramkrishna002@gmail.com';                 // SMTP username
-    $mail->Password = '1010010110';                           // SMTP password
+    $mail->Username = 'fassha08@gmail.com';                 // SMTP username
+    $mail->Password = 'noteb00k';                           // SMTP password
     $mail->SMTPSecure = 'tls';                            // Enable TLS encryption, `ssl` also accepted
     $mail->Port = 587;                                    // TCP port to connect to
 
-    $mail->From = 'abhishek.ramkrishna002@gmail.com';
-    $mail->FromName = 'abhishek BR';
+    $mail->From = 'fassha08@gmail.com';
+    $mail->FromName = 'VSM';
     $mail->addAddress($info['to_email']);     // Add a recipient
     //$mail->addAddress('abhishek.ramkrishna002@gmail.com');               // Name is optional
     //$mail->addReplyTo('abhishek.ramkrishna002@gmail.com', 'Information');
     //$mail->addCC('abhishek.ramkrishna002@gmail.com');
-    $mail->addBCC('fassha08@gmail.com');
+   // $mail->addBCC('fassha08@gmail.com');
 
 //$mail->addAttachment('/var/tmp/file.tar.gz');         // Add attachments
 //$mail->addAttachment('/tmp/image.jpg', 'new.jpg');    // Optional name
@@ -273,7 +273,7 @@ function get_activation_link($email, $profile_password) {
     include 'sql.php';
     $sql = "insert into activation(profile_id,activation_code,profile_email,profile_password) values($profile_id,'$string','$email','$profile_password')";
     $result = $conn->query($sql);
-    return "http://localhost/localvsm/vsn/activation.php?activation_code=$string";
+    return "http://localhost/vsm/activation.php?activation_code=$string";
 }
 
 function activate($activation_code) {
@@ -314,6 +314,14 @@ function create_user($user) {
     $profile_id = $user['profile_id'];
     $sql = "insert into user(username,password,profile_id) values('$username','$password',$profile_id)";
 
+    $result = $conn->query($sql);
+
+    return $result;
+}
+function update_user($email, $user_password) {
+    include 'sql.php';
+    $sql = "update user set password='$user_password' where username='$email'";
+    //echo $sql;
     $result = $conn->query($sql);
 
     return $result;

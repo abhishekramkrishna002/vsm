@@ -1,5 +1,5 @@
 <?php
 
-$home_url = "http://localhost/localvsm/vsn";
+$home_url = "http://localhost/vsm";
 
 ?>
