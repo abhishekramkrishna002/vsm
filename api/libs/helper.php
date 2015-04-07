@@ -174,6 +174,7 @@ function logout($ouath_key) {
     //echo $sql;
     $result = $conn->query($sql);
     //print_r("home::".$GLOBALS['home_url']);
+    session_destroy();
     header("Location: " . $GLOBALS['home_url']);
 
     $conn->close();

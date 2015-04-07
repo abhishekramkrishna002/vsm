@@ -2,6 +2,7 @@
 
 include '../libs/helper.php';
 header('Access-Control-Allow-Origin: *');
+//header('countryname: USA');
 if (isset($_POST['email']) && isset($_POST['name']) && isset($_POST['password'])) {
     $email = $_POST['email'];
     $name = $_POST['name'];

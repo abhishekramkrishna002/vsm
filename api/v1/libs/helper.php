@@ -17,7 +17,7 @@ function check_user($username_user, $password_user, $device) {
             get_oauth($username_user, $password_user, $device);
             $conn->close();
         } else {
-            header($_SERVER["SERVER_PROTOCOL"]." ".$GLOBALS['status_notfound']);
+            header($_SERVER["SERVER_PROTOCOL"] . " " . $GLOBALS['status_notfound']);
             $result_array = array('status' => 'error',
                 'message' => 'User not found');
             print_r(json_encode($result_array));
@@ -30,6 +30,25 @@ function get_profile_id($username_user, $password_user) {
     if (isset($username_user) && isset($password_user)) {
         include 'sql.php';
         $sql = "SELECT profile_id FROM " . $dbname . ".user where username='$username_user' and password='$password_user'";
+
+        $result = $conn->query($sql);
+
+
+        if ($result->num_rows > 0) {
+
+            $row = $result->fetch_assoc();
+            $profile_id = $row['profile_id'];
+        }
+    }
+
+    return $profile_id;
+}
+
+function get_profile_id_from_oauth($oauth_key) {
+    $profile_id = null;
+    if (isset($oauth_key)) {
+        include 'sql.php';
+        $sql = "SELECT profile_id FROM " . $dbname . ".oauth where oauth_key='$oauth_key'";
 
         $result = $conn->query($sql);
 
@@ -67,9 +86,33 @@ function check_oauth($profile_id, $device) {
     return $oauth_key;
 }
 
+function oauth_exists($profile_id, $oauth) {
+    $oauth_key = null;
+    if (isset($profile_id) && isset($oauth)) {
+        include 'sql.php';
+
+        $date = date_create();
+        date_timestamp_set($date, time());
+        $today = date_format($date, "Y-m-d H:i:s");
+        $sql = "SELECT * FROM " . $dbname . ".oauth where profile_id=$profile_id and oauth_key = '$oauth'  ";
+        $result = $conn->query($sql);
+        if ($result->num_rows > 0) {
+
+            $row = $result->fetch_assoc();
+            $expiry_date = $row['oauth_expiry'];
+            if ($expiry_date >= $today) {
+                $oauth_key = $row['oauth_key'];
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 function get_oauth($username_user, $password_user, $device) {
     if (isset($username_user) && isset($password_user) && isset($device)) {
-         
+
         $profile_id = get_profile_id($username_user, $password_user);
         $oauth_key = check_oauth($profile_id, $device);
         $status = "failure";
@@ -86,24 +129,27 @@ function get_oauth($username_user, $password_user, $device) {
             $result = $conn->query($sql);
             $oauth_key = $token;
 
-            header($_SERVER["SERVER_PROTOCOL"]." ".$GLOBALS['status_found']);
+            header($_SERVER["SERVER_PROTOCOL"] . " " . $GLOBALS['status_found']);
+            header('oauth: ' . $oauth_key);
             $result_array = array('status' => 'success',
-                'message' => 'User found', 'oauth' => $oauth_key, 'number_of_devices_logged_in' => get_users_logged_in($profile_id));
+                'message' => 'User found', 'number_of_devices_logged_in' => get_users_logged_in($profile_id));
             $conn->close();
         } else if ($oauth_key != null) {
-            header($_SERVER["SERVER_PROTOCOL"]." ".$GLOBALS['status_found']);
+            header($_SERVER["SERVER_PROTOCOL"] . " " . $GLOBALS['status_found']);
+            header('oauth: ' . $oauth_key);
             $status = "sucess";
             $result_array = array('status' => 'success',
-                'message' => 'User found', 'oauth' => $oauth_key, 'number_of_devices_logged_in' => get_users_logged_in($profile_id));
-            } else {
-            header($_SERVER["SERVER_PROTOCOL"]." ".$GLOBALS['status_notfound']);
+                'message' => 'User found', 'number_of_devices_logged_in' => get_users_logged_in($profile_id));
+        } else {
+            header($_SERVER["SERVER_PROTOCOL"] . " " . $GLOBALS['status_notfound']);
+            header('oauth: ' . $oauth_key);
             $result_array = array('status' => 'failure',
                 'message' => 'User not found');
         }
 
         print_r(json_encode($result_array));
-        if($result_array['status'] == 'success'){
-        print_r("<a href='../logout/?oauth_key=" . $oauth_key . "'>logout</a>");
+        if ($result_array['status'] == 'success') {
+            print_r("<a href='../logout/?oauth_key=" . $oauth_key . "'>logout</a>");
         }
     }
 }
@@ -137,7 +183,7 @@ function get_users_logged_in_devices($profile_id) {
     $today = date_format($date, "Y-m-d H:i:s");
     $sql = "SELECT * FROM " . $dbname . ".oauth where profile_id='$profile_id' ";
     $result = $conn->query($sql);
-      if (!$result) {
+    if (!$result) {
         die(sprintf("Error: %s", $conn->error));
     }
     $count = 0;
@@ -153,15 +199,37 @@ function get_users_logged_in_devices($profile_id) {
 
 function logout($ouath_key) {
     include 'sql.php';
-// Check connection
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+    $sql = "DELETE FROM " . $dbname . ".oauth where oauth_key='$ouath_key'";
+    if ($conn->query($sql)) {
+        header("Location: " . $GLOBALS['home_url']);
+    } else {
+        $result_array = array('status' => 'error',
+            'message' => 'ouath do not exist');
+        print_r(json_encode($result_array));
     }
-    $sql = "DELETE FROM vsn.oauth where oauth_key='$ouath_key'";
-    $result = $conn->query($sql);
-    header("Location: " . $GLOBALS['home_url']);
-
     $conn->close();
+}
+
+function logout_from_all_devices($profile_id, $oauth_key) {
+    /*
+     * authenticat eand validate the oauth and  then delete
+     */
+    if (isset($profile_id) && isset($oauth_key)) {
+        if (oauth_exists($profile_id, $oauth_key)) {
+            include 'sql.php';
+            $sql = "DELETE FROM " . $dbname . ".oauth where profile_id=$profile_id";
+            if ($conn->query($sql)) {
+                $result_array = array('status' => 'sucess',
+                    'message' => "user logged out from all the devices");
+                print_r(json_encode($result_array));
+            } else {
+                $result_array = array('status' => 'error',
+                    'message' => 'ouath do not exist');
+                print_r(json_encode($result_array));
+            }
+            $conn->close();
+        }
+    }
 }
 
 function is_user_present($email) {
@@ -170,7 +238,7 @@ function is_user_present($email) {
         include 'sql.php';
         $sql = "SELECT profile_id FROM " . $dbname . ".user where username='$email'";
         $result = $conn->query($sql);
-       if ($result->num_rows > 0) {
+        if ($result->num_rows > 0) {
 
             return true;
         }
@@ -184,7 +252,7 @@ function get_profile_id_email($email) {
         include 'sql.php';
         $sql = "SELECT profile_id FROM " . $dbname . ".profile where profile_email='$email'";
         $result = $conn->query($sql);
-       if ($result->num_rows > 0) {
+        if ($result->num_rows > 0) {
 
             $row = $result->fetch_assoc();
             $profile_id = $row['profile_id'];
@@ -223,8 +291,7 @@ function sendMail($info) {
     //$mail->addAddress('abhishek.ramkrishna002@gmail.com');               // Name is optional
     //$mail->addReplyTo('abhishek.ramkrishna002@gmail.com', 'Information');
     //$mail->addCC('abhishek.ramkrishna002@gmail.com');
-   // $mail->addBCC('fassha08@gmail.com');
-
+    // $mail->addBCC('fassha08@gmail.com');
 //$mail->addAttachment('/var/tmp/file.tar.gz');         // Add attachments
 //$mail->addAttachment('/tmp/image.jpg', 'new.jpg');    // Optional name
     $mail->isHTML(true);                                  // Set email format to HTML
@@ -240,12 +307,11 @@ function sendMail($info) {
     }
 }
 
-function forgot_password_activation_code($email,$code) {
+function forgot_password_activation_code($email, $code) {
     $profile_id = get_profile_id_email($email);
     include 'sql.php';
     $sql = "insert into activation(profile_id,activation_code,profile_email) values($profile_id,'$code','$email')";
     $result = $conn->query($sql);
-    
 }
 
 function get_activation_link($email, $profile_password) {
@@ -272,11 +338,11 @@ function activate($activation_code) {
     }
     $result_array = array();
     if (create_user($user) > 0) {
-        header($_SERVER["SERVER_PROTOCOL"]." ".$GLOBALS['status_found']);
+        header($_SERVER["SERVER_PROTOCOL"] . " " . $GLOBALS['status_found']);
         $result_array = array('status' => 'sucess',
             'message' => 'User activated sucessfully');
     } else {
-        header($_SERVER["SERVER_PROTOCOL"]." ".$GLOBALS['status_notfound']);
+        header($_SERVER["SERVER_PROTOCOL"] . " " . $GLOBALS['status_notfound']);
         $result_array = array('status' => 'failure',
             'message' => 'User activation failed!');
     }
@@ -292,11 +358,46 @@ function create_user($user) {
     $result = $conn->query($sql);
     return $result;
 }
+
 function update_user($email, $user_password) {
     include 'sql.php';
     $sql = "update user set password='$user_password' where username='$email'";
     $result = $conn->query($sql);
     return $result;
+}
+
+function file_meta($profile_id, $file_path) {
+    include 'sql.php';
+
+
+    $sql = "insert into file(profile_id,file_path) values($profile_id,'$file_path')";
+    $result = $conn->query($sql);
+    return $result;
+}
+
+function file_upload($oauth_key) {
+    if ($_FILES['file']['name'] != "" && isset($oauth_key)) {
+        $profile_id = get_profile_id_from_oauth($oauth_key);
+        $filename = $_FILES['file']['tmp_name'];
+        $destination = "C:/wamp/www/vsm/files/" . $_FILES['file']['name'];
+        if (move_uploaded_file($filename, $destination) or
+                die("Could not copy file!")) {
+
+            /*
+             * entry into database
+             */
+            file_meta($profile_id, $destination);
+            $result_array = array('status' => 'sucess',
+                'file_path' => $destination);
+            print_r(json_encode($result_array));
+        } else {
+            $result_array = array('status' => 'failure',
+                'file_path' => "failed to upload");
+            print_r(json_encode($result_array));
+        }
+    } else {
+        die("No file specified!");
+    }
 }
 
 ?>
